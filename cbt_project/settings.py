@@ -29,6 +29,9 @@ DEBUG = os.environ.get('DEBUG', False)
 
 ALLOWED_HOSTS = []
 
+# Custom user
+AUTH_USER_MODEL = 'accounts.User'
+
 
 # Application definition
 
@@ -40,6 +43,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'cbt_core',
+    'accounts',
 ]
 
 MIDDLEWARE = [
