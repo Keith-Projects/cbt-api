@@ -8,6 +8,7 @@ django = "*"
 djangorestframework = "*"
 channels = {version = "*", extras = ["daphne"]}
 psycopg2-binary = "*"
+djangorestframework-simplejwt = "*"
 
 [dev-packages]
 
