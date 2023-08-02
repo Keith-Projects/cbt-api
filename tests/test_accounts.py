@@ -5,21 +5,25 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from accounts.models import User
 
-# Test email
-test_email = "kblackwelder08@gmail.com"
+# Test email and admin email
+test_email = 'kblackwelder08@gmail.com'
+admin_email = 'keith.blackwelder@codingblindtech.com'
+
+# Password for both test and admin users
+password = 'testpassword'
 
 # Registration payload
 registration_payload = {
     'email': test_email,
-    'password': 'testpassword',
-    'first_name': 'Kevin',
+    'password': password,
+    'first_name': 'Keith',
     'last_name': 'Blackwelder',
 }
 
 # Login Payload
 login_payload = {
     'email': test_email,
-    'password': 'testpassword',
+    'password': password,
 }
 
 
@@ -142,3 +146,45 @@ class LogoutTestView(TestCase):
             format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class UserViewTest(TestCase):
+    """ Test user read, create, update and delete """
+
+    def setup(self):
+        self.client = APIClient()
+        # Create a user
+        self.user = User.objects.create_user(**registration_payload)
+        # Create admin user for testing
+        self.admin_user = User.objects.create_superuser(
+            email=admin_email,
+            password=password,
+            first_name='Keith',
+            last_name='Blackwelder',
+        )
+
+    
+    def test_user_read(self):
+        """ Test user read """
+
+        # Only admin users can read users
+        login_payload = {
+            'email': admin_email,
+            'password': password,
+        }
+        # Get the token
+        response = self.client.post(
+            reverse('token_obtain_pair'),
+            data=login_payload,
+            format='json'
+        )
+        # Set the token
+        self.token = response.data['access']
+        # Add the token to the header
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
+        # Get the user
+        response = self.client.get(
+            reverse('user'),
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
