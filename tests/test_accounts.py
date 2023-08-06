@@ -1,15 +1,11 @@
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
-
+from rest_framework.test import APITestCase
 from rest_framework import status
 from accounts.models import User
 
-# Test email and admin email
 test_email = 'kblackwelder08@gmail.com'
-admin_email = 'keith.blackwelder@codingblindtech.com'
-
-# Password for both test and admin users
 password = 'testpassword'
 
 # Registration payload
@@ -148,30 +144,65 @@ class LogoutTestView(TestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class UserViewTest(TestCase):
-    """ Test user read, create, update and delete """
+class TestUsersCRUD(APITestCase):
+    """ Test module for User CRUD operations """
 
-    def setup(self):
+    token = None
+
+    def setUp(self):
         self.client = APIClient()
-        # Create a user
-        self.user = User.objects.create_user(**registration_payload)
-        # Create admin user for testing
-        self.admin_user = User.objects.create_superuser(
-            email=admin_email,
-            password=password,
-            first_name='Keith',
-            last_name='Blackwelder',
-        )
-
-    
-    def test_user_read(self):
-        """ Test user read """
-
-        # Only admin users can read users
-        login_payload = {
-            'email': admin_email,
-            'password': password,
+        # Create a superuser
+        admin_payload = {
+            'email': 'anotheruser@gmail.com',
+            'password': 'testpassword',
+            'first_name': 'Admin',
+            'last_name': 'User',
         }
+
+        self.user = User.objects.create_superuser(**admin_payload)
+
+        # Get the token
+        # Make sure to update the email in the login payload
+        anotheruser_login_payload = {
+            'email': 'anotheruser@gmail.com',
+            'password': 'testpassword',
+        }
+        response = self.client.post(
+            reverse('token_obtain_pair'),
+            data=anotheruser_login_payload,
+            format='json'
+        )
+        # Set the token
+        self.token = response.data['access']
+
+    def teardown(self):
+        self.client.logout()
+        # Delete the user
+        self.user.delete()
+
+    def test_create_admin_user(self):
+        """ Test create admin user """
+        # Add the token to the header
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
+        # Create the payload
+        payload = {
+            'email': 'admin@codingblindtech.com',
+            'password': 'testpassword',
+            'first_name': 'Admin',
+            'last_name': 'User',
+            'is_staff': True,
+            'is_superuser': True,
+        }
+        response = self.client.post(
+            reverse('user-create'),
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_create_user_as_not_admin(self):
+        """ Try to create user as non admin """
+        self.user = User.objects.create_user(**registration_payload)
         # Get the token
         response = self.client.post(
             reverse('token_obtain_pair'),
@@ -179,12 +210,94 @@ class UserViewTest(TestCase):
             format='json'
         )
         # Set the token
-        self.token = response.data['access']
+        token = response.data['access']
         # Add the token to the header
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
-        # Get the user
-        response = self.client.get(
-            reverse('user'),
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
+        # Create the payload
+        payload = {
+            'email': 'normaluser@codingblindtech.com',
+            'password': 'testpassword',
+            'first_name': 'Normal',
+            'last_name': 'User',
+        }
+        response = self.client.post(
+            reverse('user-create'),
+            data=payload,
             format='json'
         )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_create_normal_user(self):
+        """ Test create normal user """
+        # Add the token to the header
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
+        # Create the payload
+        payload = {
+            'email': 'normaluser@gmail.com',
+            'password': 'testpassword',
+            'first_name': 'Normal',
+            'last_name': 'User',
+        }
+        response = self.client.post(
+            reverse('user-create'),
+            data=payload,
+            format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_get_all_users(self):
+        """ Test to get all users """
+        # Add the token to the header
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
+        # Create the payload
+        # Retreive all users
+        response = self.client.get(
+            reverse('user-list'),
+            format='json'
+        )
+        # print the response
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_get_single_user(self):
+        """ Test to get single user """
+        # Add the token to the header
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
+        response = self.client.get(
+            reverse('user-detail', kwargs={'pk': self.user.pk}),
+            format='json'
+        )
+        # Print the data
+        print(response.data)
+        # Print the length of the list returned by the API
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_update_user(self):
+        """ Test to update user """
+        # Add the token to the header
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
+        # Create the payload
+        payload = {
+            'email': 'updatedemail@gmail.com',
+            'password': 'testpassword',
+            'first_name': 'Updated',
+            'last_name': 'User',
+        }
+        response = self.client.put(
+            reverse('user-detail', kwargs={'pk': self.user.pk}),
+            data=payload,
+            format='json'
+        )
+        # Print the data
+        print(response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_delete_user(self):
+        """ Test to delete a user   """
+        # Add the token to the header
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token)
+        response = self.client.delete(
+            reverse('user-detail', kwargs={'pk': self.user.pk}),
+            format='json',
+            follow=True
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
